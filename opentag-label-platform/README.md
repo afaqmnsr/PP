@@ -54,8 +54,8 @@ A professional-grade label design and printing platform with drag-and-drop funct
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/opentag-label-platform.git
-   cd opentag-label-platform
+   git clone https://github.com/afaqmnsr/PP.git
+   cd PP/opentag-label-platform
    ```
 
 2. **Install dependencies**
@@ -333,9 +333,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-username/opentag-label-platform/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/opentag-label-platform/discussions)
-- **Email**: support@opentag.com
+- **Repository**: [GitHub Repository](https://github.com/afaqmnsr/PP/tree/master/opentag-label-platform)
+- **Email**: afaqmnsr0@gmail.com
+- **Issues**: Please contact via email for support and feature requests
 
 ## 🔄 Changelog
 
@@ -354,4 +354,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for professional label design workflows** 
+**Made with ❤️ for professional label design workflows**
+
+**Repository**: [https://github.com/afaqmnsr/PP/tree/master/opentag-label-platform](https://github.com/afaqmnsr/PP/tree/master/opentag-label-platform) 
