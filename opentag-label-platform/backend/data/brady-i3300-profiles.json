@@ -1,0 +1,30 @@
+[
+  {
+    "name": "50x25mm",
+    "widthMm": 50,
+    "heightMm": 25,
+    "dpi": 300,
+    "description": "Standard asset tag size"
+  },
+  {
+    "name": "38x13mm",
+    "widthMm": 38,
+    "heightMm": 13,
+    "dpi": 300,
+    "description": "Compact asset tag"
+  },
+  {
+    "name": "25x13mm",
+    "widthMm": 25,
+    "heightMm": 13,
+    "dpi": 300,
+    "description": "Small asset tag"
+  },
+  {
+    "name": "100x25mm",
+    "widthMm": 100,
+    "heightMm": 25,
+    "dpi": 300,
+    "description": "Wide asset tag"
+  }
+] 

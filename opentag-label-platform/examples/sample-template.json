@@ -1,0 +1,29 @@
+{
+  "name": "Sample Asset Tag",
+  "widthMm": 50,
+  "heightMm": 25,
+  "dpi": 300,
+  "elements": [
+    {
+      "type": "text",
+      "x": 5,
+      "y": 5,
+      "fontSize": 8,
+      "text": "ASSET TAG"
+    },
+    {
+      "type": "text",
+      "x": 5,
+      "y": 15,
+      "fontSize": 10,
+      "text": "TAG-EX-1234"
+    },
+    {
+      "type": "qrcode",
+      "x": 30,
+      "y": 5,
+      "size": 15,
+      "data": "https://example.com/cert/TAG-EX-1234"
+    }
+  ]
+} 
