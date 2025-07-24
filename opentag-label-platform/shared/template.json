@@ -1,0 +1,22 @@
+{
+    "name": "Brady 50x25 Label",
+    "widthMm": 50,
+    "heightMm": 25,
+    "dpi": 300,
+    "elements": [
+        {
+            "type": "text",
+            "x": 10,
+            "y": 10,
+            "fontSize": 10,
+            "text": "TAG-EX-1234"
+        },
+        {
+            "type": "qrcode",
+            "x": 30,
+            "y": 10,
+            "size": 12,
+            "data": "https://example.com/cert/TAG-EX-1234"
+        }
+    ]
+}
