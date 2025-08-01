@@ -6,6 +6,26 @@ import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import axios from 'axios';
 import bwipjs from 'bwip-js';
+import { addLabelToQueue, getQueueStatus, clearQueue } from './queueManager.js';
+import { generateLabelPDF } from './pdfGenerator.js';
+import { 
+    sendToPrintNode, 
+    getPrinters, 
+    getPrinter, 
+    getPrinterCapabilities,
+    getPrintJobs,
+    getPrintJob,
+    cancelPrintJob,
+    getComputers,
+    getComputer,
+    getAccount,
+    getApiKeys,
+    createApiKey,
+    deleteApiKey,
+    getWebhooks,
+    createWebhook,
+    deleteWebhook
+} from './printNodeService.js';
 
 dotenv.config();
 const app = express();
@@ -41,231 +61,360 @@ app.use((error, req, res, next) => {
     next(error);
 });
 
-// Abstract PDF generation function to reuse between render and print
-async function generateLabelPDF(doc, template) {
-    // Scale factor: 1mm = 5px (same as frontend canvas)
-    const scale = 5;
+// Legacy helper function for PrintNode requests (kept for backward compatibility)
+async function makePrintNodeRequest(endpoint, options = {}) {
+    const apiKey = process.env.PRINTNODE_API_KEY;
     
-    for (const el of template.elements) {
-        if (el.type === 'text') {
-            doc.fontSize((el.fontSize || 10) * scale / 5).text(el.text || '', el.x * scale / 5, el.y * scale / 5);
-        }
-        if (el.type === 'qrcode') {
-            try {
-                // Generate QR code as data URL
-                const qrDataUrl = await QRCode.toDataURL(el.data || '', {
-                    width: el.size * scale / 5,
-                    margin: 0,
-                    color: {
-                        dark: el.qrColor || '#000000',
-                        light: el.backgroundColor || '#ffffff'
-                    }
-                });
-                
-                // Convert data URL to buffer for PDFKit
-                const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, '');
-                const buffer = Buffer.from(base64Data, 'base64');
-                
-                doc.image(buffer, el.x * scale / 5, el.y * scale / 5, { 
-                    width: el.size * scale / 5, 
-                    height: el.size * scale / 5 
-                });
-            } catch (error) {
-                console.error('QR generation failed:', error);
-                // Fallback to placeholder
-                doc.rect(el.x * scale / 5, el.y * scale / 5, el.size * scale / 5, el.size * scale / 5).stroke();
-                doc.text('QR', el.x * scale / 5 + 2, el.y * scale / 5 + 2);
-            }
-        }
-        if (el.type === 'image') {
-            try {
-                // Handle base64 image data
-                if (el.imageData) {
-                    const base64Data = el.imageData.replace(/^data:image\/[^;]+;base64,/, '');
-                    const buffer = Buffer.from(base64Data, 'base64');
-                    doc.image(buffer, el.x * scale / 5, el.y * scale / 5, { 
-                        width: (el.width || 20) * scale / 5, 
-                        height: (el.height || 20) * scale / 5 
-                    });
-                } else if (el.imageUrl) {
-                    // Handle image URL (for future implementation)
-                    doc.image(el.imageUrl, el.x * scale / 5, el.y * scale / 5, { 
-                        width: (el.width || 20) * scale / 5, 
-                        height: (el.height || 20) * scale / 5 
-                    });
-                }
-            } catch (error) {
-                console.error('Image rendering failed:', error);
-                // Fallback to placeholder
-                doc.rect(el.x * scale / 5, el.y * scale / 5, (el.width || 20) * scale / 5, (el.height || 20) * scale / 5).stroke();
-                doc.text('IMG', el.x * scale / 5 + 2, el.y * scale / 5 + 2);
-            }
-        }
-        if (el.type === 'barcode') {
-            try {
-                // Generate barcode using bwip-js
-                const barcodeBuffer = await bwipjs.toBuffer({
-                    bcid: el.barcodeType || 'code128',
-                    text: el.data || '',
-                    scale: 3,
-                    height: (el.height || 10) * scale / 5,
-                    includetext: el.showText !== false,
-                    textxalign: 'center',
-                    textcolor: el.textColor || '#000000',
-                    backgroundcolor: el.backgroundColor || '#ffffff'
-                });
-                
-                doc.image(barcodeBuffer, el.x * scale / 5, el.y * scale / 5, { 
-                    width: (el.width || 50) * scale / 5, 
-                    height: (el.height || 10) * scale / 5 
-                });
-            } catch (error) {
-                console.error('Barcode generation failed:', error);
-                // Fallback to placeholder
-                doc.rect(el.x * scale / 5, el.y * scale / 5, (el.width || 50) * scale / 5, (el.height || 10) * scale / 5).stroke();
-                doc.text('BARCODE', el.x * scale / 5 + 2, el.y * scale / 5 + 2);
-            }
-        }
+    if (!apiKey) {
+        throw new Error('PrintNode API key not configured');
+    }
+
+    try {
+        const response = await axios({
+            url: `https://api.printnode.com${endpoint}`,
+            method: options.method || 'GET',
+            auth: {
+                username: apiKey,
+                password: ''
+            },
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            },
+            params: options.params,
+            data: options.data
+        });
+
+        return response.data;
+    } catch (error) {
+        console.error('PrintNode API Error:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            message: error.message
+        });
+        throw error;
     }
 }
 
-app.post('/api/render/pdf', async (req, res) => {
-    const template = req.body;
+// API Routes
 
-    // Create PDF with exact label dimensions, no margins
-    const doc = new PDFDocument({ 
-        size: [template.widthMm * 2.83, template.heightMm * 2.83], // mm to pt
-        margins: { top: 0, bottom: 0, left: 0, right: 0 }
-    });
-    
-    const chunks = [];
-    doc.on('data', (chunk) => chunks.push(chunk));
-    doc.on('end', () => {
-        const pdfBuffer = Buffer.concat(chunks);
+// Render PDF endpoint (for preview)
+app.post('/api/render-pdf', async (req, res) => {
+    try {
+        const { template } = req.body;
+        
+        if (!template) {
+            return res.status(400).json({ error: 'Template is required' });
+        }
+
+        const pdfBuffer = await generateLabelPDF(template);
+        
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'inline; filename="label.pdf"');
         res.send(pdfBuffer);
-    });
-
-    await generateLabelPDF(doc, template);
-    doc.end();
+    } catch (error) {
+        console.error('PDF generation error:', error);
+        res.status(500).json({ 
+            error: 'PDF generation failed', 
+            details: error.message 
+        });
+    }
 });
 
-// PrintNode integration
+// Print endpoint with queue support
 app.post('/api/print', async (req, res) => {
     try {
-        const { template, printerId } = req.body;
+        const { template, printerId, printOptions = {}, useQueue = true } = req.body;
         
-        if (!process.env.PRINTNODE_API_KEY) {
-            return res.status(500).json({ error: 'PrintNode API key not configured' });
+        if (!template || !printerId) {
+            return res.status(400).json({ 
+                error: 'Template and printerId are required' 
+            });
         }
 
-        // Generate PDF with exact dimensions
-        const doc = new PDFDocument({ 
-            size: [template.widthMm * 2.83, template.heightMm * 2.83],
-            margins: { top: 0, bottom: 0, left: 0, right: 0 }
-        });
-        const chunks = [];
-        doc.on('data', chunk => chunks.push(chunk));
-        await generateLabelPDF(doc, template);
-        doc.end();
+        // If queue is enabled, add to queue
+        if (useQueue) {
+            return await addLabelToQueue(template, printerId, printOptions, res);
+        }
 
-        const pdfBuffer = Buffer.concat(chunks);
+        // Otherwise, print immediately (legacy behavior)
+        const pdfBuffer = await generateLabelPDF(template);
         const base64 = pdfBuffer.toString('base64');
 
-        // Send to PrintNode
-        const response = await axios.post('https://api.printnode.com/printjobs', {
-            printerId,
-            title: 'Label Job',
+        // Prepare print job with advanced options
+        const printJob = {
+            printerId: parseInt(printerId),
+            title: printOptions.title || 'Label Print Job',
             contentType: 'pdf_base64',
-            content: base64
-        }, {
-            auth: { username: process.env.PRINTNODE_API_KEY, password: '' }
+            content: base64,
+            source: printOptions.source || 'OpenTag Label Platform',
+            // Advanced options
+            ...(printOptions.copies && { copies: printOptions.copies }),
+            ...(printOptions.duplex && { duplex: printOptions.duplex }),
+            ...(printOptions.orientation && { orientation: printOptions.orientation }),
+            ...(printOptions.media && { media: printOptions.media }),
+            ...(printOptions.dpi && { dpi: printOptions.dpi }),
+            ...(printOptions.fitToPage && { fitToPage: printOptions.fitToPage }),
+            ...(printOptions.pageRange && { pageRange: printOptions.pageRange }),
+            ...(printOptions.ticket && { ticket: printOptions.ticket }),
+            ...(printOptions.expireAfter && { expireAfter: printOptions.expireAfter }),
+            ...(printOptions.qty && { qty: printOptions.qty }),
+            ...(printOptions.authentication && { authentication: printOptions.authentication }),
+            ...(printOptions.encryption && { encryption: printOptions.encryption })
+        };
+
+        // Send to PrintNode
+        const response = await makePrintNodeRequest('/printjobs', {
+            method: 'POST',
+            data: printJob
         });
 
-        res.json({ success: true, jobId: response.data.id });
+        res.json({ 
+            success: true, 
+            jobId: response.id,
+            job: response
+        });
     } catch (error) {
         console.error('Print error:', error);
-        res.status(500).json({ error: 'Print failed', details: error.message });
+        res.status(500).json({ 
+            error: 'Print failed', 
+            details: error.message,
+            code: error.response?.status 
+        });
     }
 });
 
-// Get PrintNode printers
+// Queue management endpoints
+app.get('/api/queue/status', (req, res) => {
+    const status = getQueueStatus();
+    res.json(status);
+});
+
+app.post('/api/queue/clear', (req, res) => {
+    clearQueue();
+    res.json({ success: true, message: 'Queue cleared' });
+});
+
+// PrintNode API proxy endpoints (using new service)
 app.get('/api/printers', async (req, res) => {
     try {
-        if (!process.env.PRINTNODE_API_KEY) {
-            return res.status(500).json({ error: 'PrintNode API key not configured' });
-        }
-
-        const response = await axios.get('https://api.printnode.com/printers', {
-            auth: { username: process.env.PRINTNODE_API_KEY, password: '' }
-        });
-
-        res.json(response.data);
+        const printers = await getPrinters();
+        res.json(printers);
     } catch (error) {
         console.error('Failed to fetch printers:', error);
-        res.status(500).json({ error: 'Failed to fetch printers', details: error.message });
+        res.status(500).json({ 
+            error: 'Failed to fetch printers', 
+            details: error.message 
+        });
     }
+});
+
+app.get('/api/printers/:id', async (req, res) => {
+    try {
+        const printer = await getPrinter(req.params.id);
+        res.json(printer);
+    } catch (error) {
+        console.error('Failed to fetch printer:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch printer', 
+            details: error.message 
+        });
+    }
+});
+
+app.get('/api/printers/:id/capabilities', async (req, res) => {
+    try {
+        const capabilities = await getPrinterCapabilities(req.params.id);
+        res.json(capabilities);
+    } catch (error) {
+        console.error('Failed to fetch printer capabilities:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch printer capabilities', 
+            details: error.message 
+        });
+    }
+});
+
+// Get print jobs with filtering and pagination
+app.get('/api/print-jobs', async (req, res) => {
+    try {
+        const { limit, after, dir, printer, state, dateFrom, dateTo } = req.query;
+        const params = {};
+        
+        if (limit) params.limit = parseInt(limit);
+        if (after) params.after = parseInt(after);
+        if (dir) params.dir = dir;
+        if (printer) params.printer = parseInt(printer);
+        if (state) params.state = state;
+        if (dateFrom) params.dateFrom = dateFrom;
+        if (dateTo) params.dateTo = dateTo;
+
+        const printJobs = await getPrintJobs(params);
+        res.json(printJobs);
+    } catch (error) {
+        console.error('Failed to fetch print jobs:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch print jobs', 
+            details: error.message,
+            code: error.response?.status 
+        });
+    }
+});
+
+// Get specific print job by ID
+app.get('/api/print-jobs/:id', async (req, res) => {
+    try {
+        const job = await getPrintJob(req.params.id);
+        res.json(job);
+    } catch (error) {
+        console.error('Failed to fetch print job:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch print job', 
+            details: error.message 
+        });
+    }
+});
+
+// Cancel a print job
+app.delete('/api/print-jobs/:id', async (req, res) => {
+    try {
+        await cancelPrintJob(req.params.id);
+        res.json({ success: true, message: 'Print job cancelled successfully' });
+    } catch (error) {
+        console.error('Failed to cancel print job:', error);
+        res.status(500).json({ 
+            error: 'Failed to cancel print job', 
+            details: error.message 
+        });
+    }
+});
+
+app.get('/api/computers', async (req, res) => {
+    try {
+        const computers = await getComputers();
+        res.json(computers);
+    } catch (error) {
+        console.error('Failed to fetch computers:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch computers', 
+            details: error.message 
+        });
+    }
+});
+
+app.get('/api/computers/:id', async (req, res) => {
+    try {
+        const computer = await getComputer(req.params.id);
+        res.json(computer);
+    } catch (error) {
+        console.error('Failed to fetch computer:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch computer', 
+            details: error.message 
+        });
+    }
+});
+
+// Get account information (mock response)
+app.get('/api/account', async (req, res) => {
+    res.json({
+        message: 'Account information not available via API key authentication',
+        note: 'Account management requires parent account authentication or web interface access',
+        availableEndpoints: ['/api/printers', '/api/computers', '/api/print-jobs']
+    });
+});
+
+// Get API keys for the account (not available via API)
+app.get('/api/account/apikeys', async (req, res) => {
+    res.status(403).json({
+        error: 'API key management not available',
+        message: 'API key management requires parent account authentication',
+        note: 'Please manage API keys through the PrintNode web interface at https://app.printnode.com/account/apikeys'
+    });
+});
+
+// Get webhook information (not available via API)
+app.get('/api/account/webhooks', async (req, res) => {
+    res.status(404).json({
+        error: 'Webhook management not available',
+        message: 'Webhook endpoints are not available in the current PrintNode API',
+        note: 'Please check PrintNode documentation for webhook support'
+    });
 });
 
 // Template management endpoints
 app.get('/api/templates', (req, res) => {
     try {
-        const templates = JSON.parse(fs.readFileSync('./shared/template.json', 'utf8'));
+        const templatesDir = './templates';
+        if (!fs.existsSync(templatesDir)) {
+            fs.mkdirSync(templatesDir, { recursive: true });
+        }
+        
+        const files = fs.readdirSync(templatesDir);
+        const templates = files
+            .filter(file => file.endsWith('.json'))
+            .map(file => {
+                const content = fs.readFileSync(`${templatesDir}/${file}`, 'utf8');
+                return JSON.parse(content);
+            });
+        
         res.json(templates);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to load templates' });
+        console.error('Failed to load templates:', error);
+        res.status(500).json({ 
+            error: 'Failed to load templates', 
+            details: error.message 
+        });
     }
 });
 
 app.post('/api/templates', (req, res) => {
     try {
-        const template = req.body;
-        fs.writeFileSync('./shared/template.json', JSON.stringify(template, null, 2));
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to save template' });
-    }
-});
-
-app.delete('/api/templates/:name', (req, res) => {
-    try {
-        const templateName = decodeURIComponent(req.params.name);
-        // For now, just return success since we're using a single template file
-        // In a real app, you'd delete from a database or file system
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to delete template' });
-    }
-});
-
-// Print job history endpoint
-app.get('/api/print-jobs', async (req, res) => {
-    try {
-        if (!process.env.PRINTNODE_API_KEY) {
-            return res.status(500).json({ error: 'PrintNode API key not configured' });
+        const { template } = req.body;
+        
+        if (!template || !template.name) {
+            return res.status(400).json({ 
+                error: 'Template with name is required' 
+            });
         }
 
-        const response = await axios.get('https://api.printnode.com/printjobs', {
-            auth: { username: process.env.PRINTNODE_API_KEY, password: '' },
-            params: { limit: 50 } // Get last 50 jobs
-        });
+        const templatesDir = './templates';
+        if (!fs.existsSync(templatesDir)) {
+            fs.mkdirSync(templatesDir, { recursive: true });
+        }
 
-        res.json(response.data);
+        const filename = `${template.name.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        const filepath = `${templatesDir}/${filename}`;
+        
+        fs.writeFileSync(filepath, JSON.stringify(template, null, 2));
+        
+        res.json({ 
+            success: true, 
+            message: 'Template saved successfully',
+            filename 
+        });
     } catch (error) {
-        console.error('Failed to fetch print jobs:', error);
-        res.status(500).json({ error: 'Failed to fetch print jobs', details: error.message });
+        console.error('Failed to save template:', error);
+        res.status(500).json({ 
+            error: 'Failed to save template', 
+            details: error.message 
+        });
     }
 });
 
-// Brady printer profiles endpoint
+// Printer profiles endpoint
 app.get('/api/printer-profiles', (req, res) => {
     const profiles = [
-        { name: "50x25mm", widthMm: 50, heightMm: 25, dpi: 300 },
-        { name: "38x13mm", widthMm: 38, heightMm: 13, dpi: 300 },
-        { name: "25x13mm", widthMm: 25, heightMm: 13, dpi: 300 }
+        { name: 'Default Printer', id: 1 },
+        { name: 'Label Printer 1', id: 2 },
+        { name: 'Label Printer 2', id: 3 }
     ];
     res.json(profiles);
 });
 
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Queue system enabled with 3-second debounce`);
+});

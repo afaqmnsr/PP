@@ -1,31 +1,43 @@
 import { useState, useEffect } from 'react';
 
 export default function PropertiesPanel({ selectedElement, template, onTemplateChange, onElementSelect }) {
-    const [localElement, setLocalElement] = useState(null);
+    const [localElement, setLocalElement] = useState(selectedElement);
 
     useEffect(() => {
-        if (selectedElement) {
-            setLocalElement({ ...selectedElement });
-        } else {
-            setLocalElement(null);
-        }
+        setLocalElement(selectedElement);
     }, [selectedElement]);
 
-    // Early return if no element is selected
     if (!selectedElement || !localElement) {
         return (
             <div className="properties-panel">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                     <h3>Element Properties</h3>
+                    <button 
+                        onClick={() => onElementSelect && onElementSelect(null)}
+                        style={{ 
+                            padding: '4px 8px', 
+                            fontSize: '12px',
+                            background: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: 'pointer'
+                        }}
+                        title="Unselect element"
+                    >
+                        ✕
+                    </button>
                 </div>
                 <div className="no-selection-message">
                     <p>No element selected.</p>
                     <div className="selection-tips">
-                        <h4>Tips:</h4>
-                        <p className="tip-item">Click an element on the canvas to select it.</p>
-                        <p className="tip-item">Hold <span className="keyboard-shortcut">Ctrl</span> (or <span className="keyboard-shortcut">Cmd</span>) and click to multi-select.</p>
-                        <p className="tip-item">Click on empty canvas or press <span className="keyboard-shortcut">Esc</span> to unselect.</p>
-                        <p className="tip-item">Use the <span className="keyboard-shortcut">Delete</span> key to remove selected elements.</p>
+                        <h4>💡 Selection Tips:</h4>
+                        <ul className="tip-list">
+                            <li className="tip-item">Click on any element to select it</li>
+                            <li className="tip-item">Hold <kbd>Ctrl</kbd> and click to select multiple elements</li>
+                            <li className="tip-item">Press <kbd>Escape</kbd> to unselect all elements</li>
+                            <li className="tip-item">Use <kbd>Delete</kbd> to remove selected elements</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -33,31 +45,490 @@ export default function PropertiesPanel({ selectedElement, template, onTemplateC
     }
 
     const updateElement = (updates) => {
-        const newLocalElement = { ...localElement, ...updates };
-        setLocalElement(newLocalElement);
-
-        // Update template
-        const updatedElements = template.elements.map(el => 
-            el.id === selectedElement.id ? newLocalElement : el
-        );
+        if (!localElement || !selectedElement) return;
         
-        onTemplateChange({
+        const updatedElement = { ...localElement, ...updates };
+        setLocalElement(updatedElement);
+        
+        const updatedTemplate = {
             ...template,
-            elements: updatedElements
-        });
+            elements: template.elements.map(el => 
+                el.id === selectedElement.id ? updatedElement : el
+            )
+        };
+        onTemplateChange(updatedTemplate);
     };
 
-    const handleTextChange = (field, value) => {
-        updateElement({ [field]: value });
+    const renderCommonProperties = () => {
+        if (!localElement) return null;
+        
+        return (
+            <div className="property-group">
+                <h4>Position & Size</h4>
+                <div className="property-row">
+                    <label>X Position (mm):</label>
+                    <input
+                        type="number"
+                        value={localElement.x || 0}
+                        onChange={(e) => updateElement({ x: parseFloat(e.target.value) || 0 })}
+                        step="0.1"
+                        min="0"
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Y Position (mm):</label>
+                    <input
+                        type="number"
+                        value={localElement.y || 0}
+                        onChange={(e) => updateElement({ y: parseFloat(e.target.value) || 0 })}
+                        step="0.1"
+                        min="0"
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Rotation (degrees):</label>
+                    <input
+                        type="number"
+                        value={localElement.rotation || 0}
+                        onChange={(e) => updateElement({ rotation: parseFloat(e.target.value) || 0 })}
+                        step="1"
+                        min="-360"
+                        max="360"
+                    />
+                </div>
+            </div>
+        );
     };
 
-    const handleNumberChange = (field, value) => {
-        const numValue = parseFloat(value) || 0;
-        updateElement({ [field]: numValue });
+    const renderTextProperties = () => {
+        if (!localElement) return null;
+        
+        return (
+            <div className="property-group">
+                <h4>Text Properties</h4>
+                <div className="property-row">
+                    <label>Text Content:</label>
+                    <textarea
+                        value={localElement.text || ''}
+                        onChange={(e) => updateElement({ text: e.target.value })}
+                        rows="3"
+                        placeholder="Enter text content..."
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Font Size (pt):</label>
+                    <input
+                        type="number"
+                        value={localElement.fontSize || 10}
+                        onChange={(e) => updateElement({ fontSize: parseFloat(e.target.value) || 10 })}
+                        min="1"
+                        max="100"
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Text Color:</label>
+                    <input
+                        type="color"
+                        value={localElement.textColor || '#000000'}
+                        onChange={(e) => updateElement({ textColor: e.target.value })}
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Background Color:</label>
+                    <input
+                        type="color"
+                        value={localElement.backgroundColor || '#ffffff'}
+                        onChange={(e) => updateElement({ backgroundColor: e.target.value })}
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Font Weight:</label>
+                    <select
+                        value={localElement.fontWeight || 'normal'}
+                        onChange={(e) => updateElement({ fontWeight: e.target.value })}
+                    >
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold</option>
+                        <option value="lighter">Light</option>
+                    </select>
+                </div>
+                <div className="property-row">
+                    <label>Font Style:</label>
+                    <select
+                        value={localElement.fontStyle || 'normal'}
+                        onChange={(e) => updateElement({ fontStyle: e.target.value })}
+                    >
+                        <option value="normal">Normal</option>
+                        <option value="italic">Italic</option>
+                    </select>
+                </div>
+                <div className="property-row">
+                    <label>Text Align:</label>
+                    <select
+                        value={localElement.textAlign || 'left'}
+                        onChange={(e) => updateElement({ textAlign: e.target.value })}
+                    >
+                        <option value="left">Left</option>
+                        <option value="center">Center</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+            </div>
+        );
     };
 
-    const handleColorChange = (field, value) => {
-        updateElement({ [field]: value });
+    const renderQRProperties = () => {
+        if (!localElement) return null;
+        
+        return (
+            <div className="property-group">
+                <h4>QR Code Properties</h4>
+                <div className="property-row">
+                    <label>QR Data:</label>
+                    <textarea
+                        value={localElement.data || ''}
+                        onChange={(e) => updateElement({ data: e.target.value })}
+                        rows="3"
+                        placeholder="Enter QR code data..."
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Size (mm):</label>
+                    <input
+                        type="number"
+                        value={localElement.size || 12}
+                        onChange={(e) => updateElement({ size: parseFloat(e.target.value) || 12 })}
+                        min="5"
+                        max="50"
+                    />
+                </div>
+                <div className="property-row">
+                    <label>QR Color:</label>
+                    <input
+                        type="color"
+                        value={localElement.qrColor || '#000000'}
+                        onChange={(e) => updateElement({ qrColor: e.target.value })}
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Background Color:</label>
+                    <input
+                        type="color"
+                        value={localElement.backgroundColor || '#ffffff'}
+                        onChange={(e) => updateElement({ backgroundColor: e.target.value })}
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Error Correction:</label>
+                    <select
+                        value={localElement.errorCorrectionLevel || 'M'}
+                        onChange={(e) => updateElement({ errorCorrectionLevel: e.target.value })}
+                    >
+                        <option value="L">Low (7%)</option>
+                        <option value="M">Medium (15%)</option>
+                        <option value="Q">Quartile (25%)</option>
+                        <option value="H">High (30%)</option>
+                    </select>
+                </div>
+            </div>
+        );
+    };
+
+    const renderBarcodeProperties = () => {
+        if (!localElement) return null;
+        
+        return (
+            <div className="property-group">
+                <h4>Barcode Properties</h4>
+                <div className="property-row">
+                    <label>Barcode Data:</label>
+                    <input
+                        type="text"
+                        value={localElement.data || ''}
+                        onChange={(e) => updateElement({ data: e.target.value })}
+                        placeholder="Enter barcode data..."
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Barcode Type:</label>
+                    <select
+                        value={localElement.barcodeType || 'code128'}
+                        onChange={(e) => updateElement({ barcodeType: e.target.value })}
+                    >
+                        <option value="code128">Code 128</option>
+                        <option value="code39">Code 39</option>
+                        <option value="ean13">EAN-13</option>
+                        <option value="ean8">EAN-8</option>
+                        <option value="upca">UPC-A</option>
+                        <option value="upce">UPC-E</option>
+                        <option value="datamatrix">Data Matrix</option>
+                    </select>
+                </div>
+                <div className="property-row">
+                    <label>Width (mm):</label>
+                    <input
+                        type="number"
+                        value={localElement.width || 50}
+                        onChange={(e) => updateElement({ width: parseFloat(e.target.value) || 50 })}
+                        min="10"
+                        max="100"
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Height (mm):</label>
+                    <input
+                        type="number"
+                        value={localElement.height || 10}
+                        onChange={(e) => updateElement({ height: parseFloat(e.target.value) || 10 })}
+                        min="5"
+                        max="50"
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Show Text:</label>
+                    <input
+                        type="checkbox"
+                        checked={localElement.showText !== false}
+                        onChange={(e) => updateElement({ showText: e.target.checked })}
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Text Color:</label>
+                    <input
+                        type="color"
+                        value={localElement.textColor || '#000000'}
+                        onChange={(e) => updateElement({ textColor: e.target.value })}
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Background Color:</label>
+                    <input
+                        type="color"
+                        value={localElement.backgroundColor || '#ffffff'}
+                        onChange={(e) => updateElement({ backgroundColor: e.target.value })}
+                    />
+                </div>
+            </div>
+        );
+    };
+
+    const renderShapeProperties = () => {
+        if (!localElement) return null;
+        
+        if (localElement.type === 'rectangle') {
+            return (
+                <div className="property-group">
+                    <h4>Rectangle Properties</h4>
+                    <div className="property-row">
+                        <label>Width (mm):</label>
+                        <input
+                            type="number"
+                            value={localElement.width || 30}
+                            onChange={(e) => updateElement({ width: parseFloat(e.target.value) || 30 })}
+                            min="1"
+                            max="100"
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Height (mm):</label>
+                        <input
+                            type="number"
+                            value={localElement.height || 20}
+                            onChange={(e) => updateElement({ height: parseFloat(e.target.value) || 20 })}
+                            min="1"
+                            max="100"
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Fill Color:</label>
+                        <input
+                            type="color"
+                            value={localElement.fillColor || '#ffffff'}
+                            onChange={(e) => updateElement({ fillColor: e.target.value })}
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Stroke Color:</label>
+                        <input
+                            type="color"
+                            value={localElement.strokeColor || '#000000'}
+                            onChange={(e) => updateElement({ strokeColor: e.target.value })}
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Stroke Width:</label>
+                        <input
+                            type="number"
+                            value={localElement.strokeWidth || 1}
+                            onChange={(e) => updateElement({ strokeWidth: parseFloat(e.target.value) || 1 })}
+                            min="0"
+                            max="10"
+                            step="0.5"
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Corner Radius:</label>
+                        <input
+                            type="number"
+                            value={localElement.cornerRadius || 0}
+                            onChange={(e) => updateElement({ cornerRadius: parseFloat(e.target.value) || 0 })}
+                            min="0"
+                            max="20"
+                        />
+                    </div>
+                </div>
+            );
+        } else if (localElement.type === 'circle') {
+            return (
+                <div className="property-group">
+                    <h4>Circle Properties</h4>
+                    <div className="property-row">
+                        <label>Radius (mm):</label>
+                        <input
+                            type="number"
+                            value={localElement.radius || 10}
+                            onChange={(e) => updateElement({ radius: parseFloat(e.target.value) || 10 })}
+                            min="1"
+                            max="50"
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Fill Color:</label>
+                        <input
+                            type="color"
+                            value={localElement.fillColor || '#ffffff'}
+                            onChange={(e) => updateElement({ fillColor: e.target.value })}
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Stroke Color:</label>
+                        <input
+                            type="color"
+                            value={localElement.strokeColor || '#000000'}
+                            onChange={(e) => updateElement({ strokeColor: e.target.value })}
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Stroke Width:</label>
+                        <input
+                            type="number"
+                            value={localElement.strokeWidth || 1}
+                            onChange={(e) => updateElement({ strokeWidth: parseFloat(e.target.value) || 1 })}
+                            min="0"
+                            max="10"
+                            step="0.5"
+                        />
+                    </div>
+                </div>
+            );
+        } else if (localElement.type === 'line') {
+            return (
+                <div className="property-group">
+                    <h4>Line Properties</h4>
+                    <div className="property-row">
+                        <label>End X (mm):</label>
+                        <input
+                            type="number"
+                            value={localElement.endX || 40}
+                            onChange={(e) => updateElement({ endX: parseFloat(e.target.value) || 40 })}
+                            min="0"
+                            max="100"
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>End Y (mm):</label>
+                        <input
+                            type="number"
+                            value={localElement.endY || 10}
+                            onChange={(e) => updateElement({ endY: parseFloat(e.target.value) || 10 })}
+                            min="0"
+                            max="100"
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Stroke Color:</label>
+                        <input
+                            type="color"
+                            value={localElement.strokeColor || '#000000'}
+                            onChange={(e) => updateElement({ strokeColor: e.target.value })}
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Stroke Width:</label>
+                        <input
+                            type="number"
+                            value={localElement.strokeWidth || 1}
+                            onChange={(e) => updateElement({ strokeWidth: parseFloat(e.target.value) || 1 })}
+                            min="0.5"
+                            max="10"
+                            step="0.5"
+                        />
+                    </div>
+                    <div className="property-row">
+                        <label>Line Style:</label>
+                        <select
+                            value={localElement.lineStyle || 'solid'}
+                            onChange={(e) => updateElement({ lineStyle: e.target.value })}
+                        >
+                            <option value="solid">Solid</option>
+                            <option value="dashed">Dashed</option>
+                            <option value="dotted">Dotted</option>
+                        </select>
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    const renderImageProperties = () => {
+        if (!localElement) return null;
+        
+        return (
+            <div className="property-group">
+                <h4>Image Properties</h4>
+                <div className="property-row">
+                    <label>Width (mm):</label>
+                    <input
+                        type="number"
+                        value={localElement.width || 20}
+                        onChange={(e) => updateElement({ width: parseFloat(e.target.value) || 20 })}
+                        min="1"
+                        max="100"
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Height (mm):</label>
+                    <input
+                        type="number"
+                        value={localElement.height || 20}
+                        onChange={(e) => updateElement({ height: parseFloat(e.target.value) || 20 })}
+                        min="1"
+                        max="100"
+                    />
+                </div>
+                <div className="property-row">
+                    <label>Maintain Aspect Ratio:</label>
+                    <input
+                        type="checkbox"
+                        checked={localElement.maintainAspectRatio !== false}
+                        onChange={(e) => updateElement({ maintainAspectRatio: e.target.checked })}
+                    />
+                </div>
+                {localElement.imageData && (
+                    <div className="property-row">
+                        <label>Image Preview:</label>
+                        <div className="image-preview-small">
+                            <img 
+                                src={localElement.imageData} 
+                                alt="Preview" 
+                                style={{ maxWidth: '100px', maxHeight: '100px' }}
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
     };
 
     return (
@@ -80,376 +551,31 @@ export default function PropertiesPanel({ selectedElement, template, onTemplateC
                     ✕
                 </button>
             </div>
-            
-            {localElement && (
-                <>
-                    <div className="property-group">
-                        <label>Type</label>
-                        <div className="property-value">{localElement.type}</div>
-                    </div>
 
-                    <div className="property-group">
-                        <label>Position X (mm)</label>
-                        <input
-                            type="number"
-                            value={localElement.x}
-                            onChange={(e) => handleNumberChange('x', e.target.value)}
-                            step="0.5"
-                            min="0"
-                        />
-                    </div>
+            <div className="element-info">
+                <strong>Type:</strong> {localElement.type} | <strong>ID:</strong> {localElement.id}
+            </div>
 
-                    <div className="property-group">
-                        <label>Position Y (mm)</label>
-                        <input
-                            type="number"
-                            value={localElement.y}
-                            onChange={(e) => handleNumberChange('y', e.target.value)}
-                            step="0.5"
-                            min="0"
-                        />
-                    </div>
+            {renderCommonProperties()}
 
-                    <div className="property-group">
-                        <label>Rotation (degrees)</label>
-                        <input
-                            type="number"
-                            value={localElement.rotation || 0}
-                            onChange={(e) => handleNumberChange('rotation', e.target.value)}
-                            step="1"
-                            min="0"
-                            max="360"
-                        />
-                    </div>
-
-                    {localElement.type === 'text' && (
-                        <>
-                            <div className="property-group">
-                                <label>Text Content</label>
-                                <input
-                                    type="text"
-                                    value={localElement.text || ''}
-                                    onChange={(e) => handleTextChange('text', e.target.value)}
-                                    placeholder="Enter text..."
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Font Size (pt)</label>
-                                <input
-                                    type="number"
-                                    value={localElement.fontSize || 10}
-                                    onChange={(e) => handleNumberChange('fontSize', e.target.value)}
-                                    step="0.5"
-                                    min="1"
-                                    max="50"
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Text Color</label>
-                                <div className="color-picker-container">
-                                    <input
-                                        type="color"
-                                        value={localElement.textColor || '#000000'}
-                                        onChange={(e) => handleColorChange('textColor', e.target.value)}
-                                        className="color-picker"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={localElement.textColor || '#000000'}
-                                        onChange={(e) => handleColorChange('textColor', e.target.value)}
-                                        placeholder="#000000"
-                                        className="color-input"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="property-group">
-                                <label>Background Color</label>
-                                <div className="color-picker-container">
-                                    <input
-                                        type="color"
-                                        value={localElement.backgroundColor || '#ffffff'}
-                                        onChange={(e) => handleColorChange('backgroundColor', e.target.value)}
-                                        className="color-picker"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={localElement.backgroundColor || '#ffffff'}
-                                        onChange={(e) => handleColorChange('backgroundColor', e.target.value)}
-                                        placeholder="#ffffff"
-                                        className="color-input"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="property-group">
-                                <label>Font Weight</label>
-                                <select
-                                    value={localElement.fontWeight || 'normal'}
-                                    onChange={(e) => handleTextChange('fontWeight', e.target.value)}
-                                >
-                                    <option value="normal">Normal</option>
-                                    <option value="bold">Bold</option>
-                                    <option value="lighter">Light</option>
-                                </select>
-                            </div>
-                        </>
-                    )}
-
-                    {localElement.type === 'qrcode' && (
-                        <>
-                            <div className="property-group">
-                                <label>QR Data</label>
-                                <textarea
-                                    value={localElement.data || ''}
-                                    onChange={(e) => handleTextChange('data', e.target.value)}
-                                    placeholder="Enter URL or text for QR code..."
-                                    rows="3"
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Size (mm)</label>
-                                <input
-                                    type="number"
-                                    value={localElement.size || 12}
-                                    onChange={(e) => handleNumberChange('size', e.target.value)}
-                                    step="0.5"
-                                    min="5"
-                                    max="50"
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>QR Color</label>
-                                <div className="color-picker-container">
-                                    <input
-                                        type="color"
-                                        value={localElement.qrColor || '#000000'}
-                                        onChange={(e) => handleColorChange('qrColor', e.target.value)}
-                                        className="color-picker"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={localElement.qrColor || '#000000'}
-                                        onChange={(e) => handleColorChange('qrColor', e.target.value)}
-                                        placeholder="#000000"
-                                        className="color-input"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="property-group">
-                                <label>Background Color</label>
-                                <div className="color-picker-container">
-                                    <input
-                                        type="color"
-                                        value={localElement.backgroundColor || '#ffffff'}
-                                        onChange={(e) => handleColorChange('backgroundColor', e.target.value)}
-                                        className="color-picker"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={localElement.backgroundColor || '#ffffff'}
-                                        onChange={(e) => handleColorChange('backgroundColor', e.target.value)}
-                                        placeholder="#ffffff"
-                                        className="color-input"
-                                    />
-                                </div>
-                            </div>
-
-                            {localElement.data && (
-                                <div className="property-group">
-                                    <label>QR Preview</label>
-                                    <div className="qr-preview">
-                                        <img 
-                                            src={`data:image/png;base64,${btoa(localElement.data)}`}
-                                            alt="QR Preview"
-                                            style={{ width: '100px', height: '100px' }}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {localElement.type === 'barcode' && (
-                        <>
-                            <div className="property-group">
-                                <label>Barcode Data</label>
-                                <input
-                                    type="text"
-                                    value={localElement.data || ''}
-                                    onChange={(e) => handleTextChange('data', e.target.value)}
-                                    placeholder="Enter barcode data..."
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Barcode Type</label>
-                                <select
-                                    value={localElement.barcodeType || 'code128'}
-                                    onChange={(e) => handleTextChange('barcodeType', e.target.value)}
-                                >
-                                    <option value="code128">Code 128</option>
-                                    <option value="code39">Code 39</option>
-                                    <option value="ean13">EAN-13</option>
-                                    <option value="ean8">EAN-8</option>
-                                    <option value="upca">UPC-A</option>
-                                    <option value="upce">UPC-E</option>
-                                </select>
-                            </div>
-
-                            <div className="property-group">
-                                <label>Width (mm)</label>
-                                <input
-                                    type="number"
-                                    value={localElement.width || 50}
-                                    onChange={(e) => handleNumberChange('width', e.target.value)}
-                                    step="1"
-                                    min="10"
-                                    max="100"
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Height (mm)</label>
-                                <input
-                                    type="number"
-                                    value={localElement.height || 10}
-                                    onChange={(e) => handleNumberChange('height', e.target.value)}
-                                    step="1"
-                                    min="5"
-                                    max="50"
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Show Text</label>
-                                <input
-                                    type="checkbox"
-                                    checked={localElement.showText !== false}
-                                    onChange={(e) => handleTextChange('showText', e.target.checked)}
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Text Color</label>
-                                <div className="color-picker-container">
-                                    <input
-                                        type="color"
-                                        value={localElement.textColor || '#000000'}
-                                        onChange={(e) => handleColorChange('textColor', e.target.value)}
-                                        className="color-picker"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={localElement.textColor || '#000000'}
-                                        onChange={(e) => handleColorChange('textColor', e.target.value)}
-                                        placeholder="#000000"
-                                        className="color-input"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="property-group">
-                                <label>Background Color</label>
-                                <div className="color-picker-container">
-                                    <input
-                                        type="color"
-                                        value={localElement.backgroundColor || '#ffffff'}
-                                        onChange={(e) => handleColorChange('backgroundColor', e.target.value)}
-                                        className="color-picker"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={localElement.backgroundColor || '#ffffff'}
-                                        onChange={(e) => handleColorChange('backgroundColor', e.target.value)}
-                                        placeholder="#ffffff"
-                                        className="color-input"
-                                    />
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    {localElement.type === 'image' && (
-                        <>
-                            <div className="property-group">
-                                <label>Image Preview</label>
-                                <div className="image-preview-small">
-                                    {localElement.imageData && (
-                                        <img 
-                                            src={localElement.imageData}
-                                            alt="Image Preview"
-                                            style={{ 
-                                                maxWidth: '100px', 
-                                                maxHeight: '100px',
-                                                border: '1px solid #ddd',
-                                                borderRadius: '4px'
-                                            }}
-                                        />
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="property-group">
-                                <label>Width (mm)</label>
-                                <input
-                                    type="number"
-                                    value={localElement.width || 20}
-                                    onChange={(e) => handleNumberChange('width', e.target.value)}
-                                    step="1"
-                                    min="5"
-                                    max="100"
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Height (mm)</label>
-                                <input
-                                    type="number"
-                                    value={localElement.height || 20}
-                                    onChange={(e) => handleNumberChange('height', e.target.value)}
-                                    step="1"
-                                    min="5"
-                                    max="100"
-                                />
-                            </div>
-
-                            <div className="property-group">
-                                <label>Maintain Aspect Ratio</label>
-                                <input
-                                    type="checkbox"
-                                    checked={localElement.maintainAspectRatio !== false}
-                                    onChange={(e) => handleTextChange('maintainAspectRatio', e.target.checked)}
-                                />
-                            </div>
-
-                            {localElement.originalWidth && localElement.originalHeight && (
-                                <div className="property-group">
-                                    <label>Original Size</label>
-                                    <div className="property-value">
-                                        {localElement.originalWidth} × {localElement.originalHeight}px
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </>
-            )}
+            {localElement.type === 'text' && renderTextProperties()}
+            {localElement.type === 'qrcode' && renderQRProperties()}
+            {localElement.type === 'barcode' && renderBarcodeProperties()}
+            {(localElement.type === 'rectangle' || localElement.type === 'circle' || localElement.type === 'line') && renderShapeProperties()}
+            {localElement.type === 'image' && renderImageProperties()}
 
             <div className="property-actions">
                 <button 
-                    className="btn btn-danger"
+                    className="btn btn-danger btn-sm"
                     onClick={() => {
-                        const updatedElements = template.elements.filter(el => el.id !== selectedElement.id);
-                        onTemplateChange({
-                            ...template,
-                            elements: updatedElements
-                        });
+                        if (selectedElement) {
+                            const updatedTemplate = {
+                                ...template,
+                                elements: template.elements.filter(el => el.id !== selectedElement.id)
+                            };
+                            onTemplateChange(updatedTemplate);
+                            onElementSelect(null);
+                        }
                     }}
                 >
                     Delete Element

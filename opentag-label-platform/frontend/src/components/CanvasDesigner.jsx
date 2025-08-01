@@ -333,132 +333,224 @@ export default function CanvasDesigner({ template, onTemplateChange, selectedEle
         const scaledY = el.y * scale;
         const isSelected = selectedIds.includes(elementId);
         
-        if (el.type === 'text') {
-            return (
-                <Text 
-                    key={elementId}
-                    id={elementId}
-                    text={el.text} 
-                    x={scaledX} 
-                    y={scaledY} 
-                    fontSize={(el.fontSize || 12) * scale}
-                    fill={el.textColor || "black"}
-                    rotation={el.rotation || 0}
-                    draggable
-                    onClick={(e) => handleElementClick(elementId, e)}
-                    onTap={(e) => handleElementClick(elementId, e)}
-                    onDragEnd={(e) => handleDragEnd(elementId, e.target.x(), e.target.y())}
-                    onTransformEnd={() => handleTransformEnd([elementId], {
-                        x: scaledX,
-                        y: scaledY,
-                        fontSize: (el.fontSize || 12) * scale,
-                        rotation: el.rotation || 0
-                    })}
-                    {...(isSelected && { stroke: '#0096fd', strokeWidth: 1 })}
-                />
-            );
-        } else if (el.type === 'qrcode') {
-            const qrImage = qrImages[`${el.x}-${el.y}`];
-            const scaledSize = el.size * scale;
-            
-            if (qrImage) {
+        // Common props for all elements (excluding key)
+        const commonProps = {
+            id: elementId,
+            draggable: true,
+            onClick: (e) => handleElementClick(elementId, e),
+            onTap: (e) => handleElementClick(elementId, e),
+            onDragEnd: (e) => handleDragEnd(elementId, e.target.x(), e.target.y()),
+            ...(isSelected && { stroke: '#0096fd', strokeWidth: 2 })
+        };
+
+        switch (el.type) {
+            case 'text':
                 return (
-                    <Image
+                    <Text 
                         key={elementId}
-                        id={elementId}
-                        x={scaledX}
-                        y={scaledY}
-                        image={qrImage}
-                        width={scaledSize}
-                        height={scaledSize}
-                        rotation={el.rotation || 0}
-                        draggable
-                        onClick={(e) => handleElementClick(elementId, e)}
-                        onTap={(e) => handleElementClick(elementId, e)}
-                        onDragEnd={(e) => handleDragEnd(elementId, e.target.x(), e.target.y())}
-                        onTransformEnd={() => handleTransformEnd([elementId], {
-                            x: scaledX,
-                            y: scaledY,
-                            width: scaledSize,
-                            rotation: el.rotation || 0
-                        })}
-                        {...(isSelected && { stroke: '#0096fd', strokeWidth: 2 })}
-                    />
-                );
-            } else {
-                // Fallback to placeholder while QR is generating
-                return (
-                    <Rect 
-                        key={elementId}
-                        id={elementId}
+                        {...commonProps}
+                        text={el.text || 'Text'} 
                         x={scaledX} 
                         y={scaledY} 
-                        width={scaledSize} 
-                        height={scaledSize} 
-                        stroke={isSelected ? "#0096fd" : "black"}
-                        strokeWidth={isSelected ? 2 : 1}
+                        fontSize={(el.fontSize || 12) * scale}
+                        fill={el.textColor || "black"}
                         rotation={el.rotation || 0}
-                        draggable
-                        onClick={(e) => handleElementClick(elementId, e)}
-                        onTap={(e) => handleElementClick(elementId, e)}
-                        onDragEnd={(e) => handleDragEnd(elementId, e.target.x(), e.target.y())}
+                        fontStyle={el.fontStyle || 'normal'}
+                        fontWeight={el.fontWeight || 'normal'}
+                        align={el.textAlign || 'left'}
                         onTransformEnd={() => handleTransformEnd([elementId], {
                             x: scaledX,
                             y: scaledY,
-                            width: scaledSize,
+                            fontSize: (el.fontSize || 12) * scale,
                             rotation: el.rotation || 0
                         })}
                     />
                 );
-            }
-        } else if (el.type === 'image') {
-            const imageRef = imageRefs[elementId];
-            const scaledWidth = (el.width || 20) * scale;
-            const scaledHeight = (el.height || 20) * scale;
-            
-            if (imageRef) {
-                return (
-                    <Image
-                        key={elementId}
-                        id={elementId}
-                        x={scaledX}
-                        y={scaledY}
-                        width={scaledWidth}
-                        height={scaledHeight}
-                        image={imageRef}
-                        rotation={el.rotation || 0}
-                        draggable
-                        onClick={(e) => handleElementClick(elementId, e)}
-                        onTap={(e) => handleElementClick(elementId, e)}
-                        onDragEnd={(e) => handleDragEnd(elementId, e.target.x(), e.target.y())}
-                        onTransformEnd={() => handleTransformEnd([elementId], {
-                            x: scaledX,
-                            y: scaledY,
-                            width: scaledWidth,
-                            height: scaledHeight,
-                            rotation: el.rotation || 0
-                        })}
-                        {...(isSelected && { stroke: '#0096fd', strokeWidth: 2 })}
-                    />
-                );
-            } else {
-                // Fallback to placeholder while image is loading
-                return (
-                    <Group key={elementId}>
+
+            case 'qrcode':
+                const qrImage = qrImages[`${el.x}-${el.y}`];
+                const scaledSize = el.size * scale;
+                
+                if (qrImage) {
+                    return (
+                        <Image
+                            key={elementId}
+                            {...commonProps}
+                            x={scaledX}
+                            y={scaledY}
+                            image={qrImage}
+                            width={scaledSize}
+                            height={scaledSize}
+                            rotation={el.rotation || 0}
+                            onTransformEnd={() => handleTransformEnd([elementId], {
+                                x: scaledX,
+                                y: scaledY,
+                                width: scaledSize,
+                                rotation: el.rotation || 0
+                            })}
+                        />
+                    );
+                } else {
+                    // Fallback to placeholder while QR is generating
+                    return (
                         <Rect 
-                            id={elementId}
+                            key={elementId}
+                            {...commonProps}
                             x={scaledX} 
                             y={scaledY} 
-                            width={scaledWidth} 
-                            height={scaledHeight} 
+                            width={scaledSize} 
+                            height={scaledSize} 
                             stroke={isSelected ? "#0096fd" : "black"}
                             strokeWidth={isSelected ? 2 : 1}
                             fill="#f0f0f0"
                             rotation={el.rotation || 0}
-                            draggable
-                            onClick={(e) => handleElementClick(elementId, e)}
-                            onTap={(e) => handleElementClick(elementId, e)}
-                            onDragEnd={(e) => handleDragEnd(elementId, e.target.x(), e.target.y())}
+                            onTransformEnd={() => handleTransformEnd([elementId], {
+                                x: scaledX,
+                                y: scaledY,
+                                width: scaledSize,
+                                rotation: el.rotation || 0
+                            })}
+                        />
+                    );
+                }
+
+            case 'barcode':
+                const scaledBarcodeWidth = el.width * scale;
+                const scaledBarcodeHeight = el.height * scale;
+                
+                // For barcodes, we'll show a placeholder on canvas and generate in PDF
+                return (
+                    <Group key={elementId} {...commonProps}>
+                        <Rect 
+                            x={scaledX} 
+                            y={scaledY} 
+                            width={scaledBarcodeWidth} 
+                            height={scaledBarcodeHeight} 
+                            stroke={isSelected ? "#0096fd" : "black"}
+                            strokeWidth={isSelected ? 2 : 1}
+                            fill="#f8f8f8"
+                            rotation={el.rotation || 0}
+                            onTransformEnd={() => handleTransformEnd([elementId], {
+                                x: scaledX,
+                                y: scaledY,
+                                width: scaledBarcodeWidth,
+                                height: scaledBarcodeHeight,
+                                rotation: el.rotation || 0
+                            })}
+                        />
+                        <Text 
+                            text={`${el.barcodeType || 'code128'}: ${el.data || '123456789'}`}
+                            x={scaledX + 2} 
+                            y={scaledY + scaledBarcodeHeight / 2 - 5}
+                            fontSize={8}
+                            fill="black"
+                            rotation={el.rotation || 0}
+                        />
+                    </Group>
+                );
+
+            case 'rectangle':
+                const scaledRectWidth = el.width * scale;
+                const scaledRectHeight = el.height * scale;
+                
+                return (
+                    <Rect 
+                        key={elementId}
+                        {...commonProps}
+                        x={scaledX} 
+                        y={scaledY} 
+                        width={scaledRectWidth} 
+                        height={scaledRectHeight} 
+                        fill={el.fillColor || "#ffffff"}
+                        stroke={el.strokeColor || "black"}
+                        strokeWidth={(el.strokeWidth || 1) * scale}
+                        cornerRadius={(el.cornerRadius || 0) * scale}
+                        rotation={el.rotation || 0}
+                        onTransformEnd={() => handleTransformEnd([elementId], {
+                            x: scaledX,
+                            y: scaledY,
+                            width: scaledRectWidth,
+                            height: scaledRectHeight,
+                            rotation: el.rotation || 0
+                        })}
+                    />
+                );
+
+            case 'circle':
+                const scaledRadius = el.radius * scale;
+                
+                return (
+                    <Group key={elementId} {...commonProps}>
+                        <Rect 
+                            x={scaledX} 
+                            y={scaledY} 
+                            width={scaledRadius * 2} 
+                            height={scaledRadius * 2} 
+                            fill={el.fillColor || "#ffffff"}
+                            stroke={el.strokeColor || "black"}
+                            strokeWidth={(el.strokeWidth || 1) * scale}
+                            cornerRadius={scaledRadius}
+                            rotation={el.rotation || 0}
+                            onTransformEnd={() => handleTransformEnd([elementId], {
+                                x: scaledX,
+                                y: scaledY,
+                                width: scaledRadius * 2,
+                                height: scaledRadius * 2,
+                                rotation: el.rotation || 0
+                            })}
+                        />
+                    </Group>
+                );
+
+            case 'line':
+                const scaledEndX = el.endX * scale;
+                const scaledEndY = el.endY * scale;
+                
+                return (
+                    <Group key={elementId} {...commonProps}>
+                        <Rect 
+                            x={scaledX} 
+                            y={scaledY} 
+                            width={Math.abs(scaledEndX - scaledX)} 
+                            height={Math.abs(scaledEndY - scaledY)} 
+                            fill="transparent"
+                            stroke={isSelected ? "#0096fd" : "transparent"}
+                            strokeWidth={isSelected ? 1 : 0}
+                            onTransformEnd={() => handleTransformEnd([elementId], {
+                                x: scaledX,
+                                y: scaledY,
+                                endX: scaledEndX,
+                                endY: scaledEndY
+                            })}
+                        />
+                        {/* Line visualization - we'll use a thin rectangle for now */}
+                        <Rect 
+                            x={scaledX} 
+                            y={scaledY + (scaledEndY - scaledY) / 2 - (el.strokeWidth || 1) * scale / 2} 
+                            width={Math.abs(scaledEndX - scaledX)} 
+                            height={(el.strokeWidth || 1) * scale} 
+                            fill={el.strokeColor || "black"}
+                            rotation={el.rotation || 0}
+                        />
+                    </Group>
+                );
+
+            case 'image':
+                const imageRef = imageRefs[elementId];
+                const scaledWidth = (el.width || 20) * scale;
+                const scaledHeight = (el.height || 20) * scale;
+                
+                if (imageRef) {
+                    return (
+                        <Image
+                            key={elementId}
+                            {...commonProps}
+                            x={scaledX}
+                            y={scaledY}
+                            width={scaledWidth}
+                            height={scaledHeight}
+                            image={imageRef}
+                            rotation={el.rotation || 0}
                             onTransformEnd={() => handleTransformEnd([elementId], {
                                 x: scaledX,
                                 y: scaledY,
@@ -467,48 +559,56 @@ export default function CanvasDesigner({ template, onTemplateChange, selectedEle
                                 rotation: el.rotation || 0
                             })}
                         />
-                        <Text
-                            x={scaledX + 5}
-                            y={scaledY + scaledHeight / 2 - 8}
-                            text="IMG"
-                            fontSize={12}
-                            fill="#666"
-                            rotation={el.rotation || 0}
-                        />
-                    </Group>
+                    );
+                } else {
+                    // Fallback to placeholder while image is loading
+                    return (
+                        <Group key={elementId} {...commonProps}>
+                            <Rect 
+                                x={scaledX} 
+                                y={scaledY} 
+                                width={scaledWidth} 
+                                height={scaledHeight} 
+                                fill="#f0f0f0"
+                                stroke={isSelected ? "#0096fd" : "black"}
+                                strokeWidth={isSelected ? 2 : 1}
+                                rotation={el.rotation || 0}
+                                onTransformEnd={() => handleTransformEnd([elementId], {
+                                    x: scaledX,
+                                    y: scaledY,
+                                    width: scaledWidth,
+                                    height: scaledHeight,
+                                    rotation: el.rotation || 0
+                                })}
+                            />
+                            <Text 
+                                text="IMG"
+                                x={scaledX + 2} 
+                                y={scaledY + 2}
+                                fontSize={10}
+                                fill="black"
+                                rotation={el.rotation || 0}
+                            />
+                        </Group>
+                    );
+                }
+
+            default:
+                console.warn(`Unknown element type: ${el.type}`);
+                return (
+                    <Rect 
+                        key={elementId}
+                        {...commonProps}
+                        x={scaledX} 
+                        y={scaledY} 
+                        width={20 * scale} 
+                        height={20 * scale} 
+                        fill="#ff0000"
+                        stroke="black"
+                        strokeWidth={1}
+                    />
                 );
-            }
-        } else if (el.type === 'barcode') {
-            const scaledWidth = (el.width || 50) * scale;
-            const scaledHeight = (el.height || 10) * scale;
-            
-            return (
-                <Rect 
-                    key={elementId}
-                    id={elementId}
-                    x={scaledX} 
-                    y={scaledY} 
-                    width={scaledWidth} 
-                    height={scaledHeight} 
-                    fill={el.backgroundColor || "#ffffff"}
-                    stroke={isSelected ? "#0096fd" : "black"}
-                    strokeWidth={isSelected ? 2 : 1}
-                    rotation={el.rotation || 0}
-                    draggable
-                    onClick={(e) => handleElementClick(elementId, e)}
-                    onTap={(e) => handleElementClick(elementId, e)}
-                    onDragEnd={(e) => handleDragEnd(elementId, e.target.x(), e.target.y())}
-                    onTransformEnd={() => handleTransformEnd([elementId], {
-                        x: scaledX,
-                        y: scaledY,
-                        width: scaledWidth,
-                        height: scaledHeight,
-                        rotation: el.rotation || 0
-                    })}
-                />
-            );
         }
-        return null;
     };
 
     return (
@@ -626,9 +726,9 @@ export default function CanvasDesigner({ template, onTemplateChange, selectedEle
                                 return newBox;
                             }}
                         />
-                    )}
-                </Layer>
-            </Stage>
+                )}
+            </Layer>
+        </Stage>
         </div>
     );
 }
